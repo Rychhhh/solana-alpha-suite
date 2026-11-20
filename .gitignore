@@ -1,0 +1,13 @@
+# Secrets & Local Environment (NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+
+# Local Audit Cache, Traces, Pings & Credit Counters
+data/
+
+# Dependencies & Logs
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solana Alpha Suite v2 — 4-Gate Auditor, Investigator, Tracer & Alpha Hunter</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .gate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 12px 0; }
+    .gate-card { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; }
+    .gate-card.pass { border-color: rgba(0,229,153,0.4); }
+    .gate-card.fail { border-color: rgba(255,77,109,0.4); }
+    .daily-bar-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .day-chip { font-family: var(--mono); font-size: 11px; padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); }
+    .day-chip.pos { border-color: rgba(0,229,153,0.35); background: rgba(0,229,153,0.08); }
+    .day-chip.neg { border-color: rgba(255,77,109,0.35); background: rgba(255,77,109,0.08); }
+    .toolbar-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .runner-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-family: var(--mono); font-size: 11.5px; }
+    .runner-chip:hover { border-color: var(--green); }
+    .runner-chip.selected { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+    textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-family: var(--mono); font-size: 12px; width: 100%; outline: none; resize: vertical; }
+    textarea:focus { border-color: var(--green); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">//</span>
+      <span>SOLANA ALPHA SUITE <span style="color:var(--green);font-size:11px;">v2</span></span>
+      <span class="brand-sub" id="walletCountBadge">Loading...</span>
+    </div>
+
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview">Overview</button>
+      <button class="nav-tab" data-tab="auditor">927 Auditor</button>
+      <button class="nav-tab" data-tab="tracer">Investigate &amp; Tracer</button>
+      <button class="nav-tab" data-tab="alpha">🔥 Alpha Hunter</button>
+      <button class="nav-tab" data-tab="pinger">Consensus Ping</button>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="credit-pill" title="Estimasi penggunaan Helius Free Tier (1,000,000 credits/bulan)">
+        Helius: <b id="creditsUsed">0</b> / 1M cr
+      </div>
+      <button class="btn" id="btnOpenSettings">⚙ API Key</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- API Key Warning Banner -->
+    <div class="banner warn" id="noKeyBanner" style="display:none;">
+      <div>
+        <strong>Helius API Key belum dipasang.</strong>
+        <span class="muted">Buka <b>dashboard.helius.dev → API Keys</b>, copy key kamu, lalu klik <b>⚙ API Key</b> di kanan atas.</span>
+      </div>
+      <button class="btn btn-amber" onclick="openSettings()">Pasang API Key</button>
+    </div>
+
+    <!-- Active Job Progress Banner -->
+    <div class="banner progress" id="jobBanner" style="display:none;">
+      <div>
+        <strong id="jobTitle">Scanning...</strong>
+        <span class="mono muted" id="jobDetail" style="margin-left:8px;"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="progress-track"><div class="progress-fill" id="jobProgressFill" style="width:0%"></div></div>
+        <span class="mono" id="jobCounter">0/0</span>
+        <button class="btn btn-red btn-xs" onclick="stopAuditJob()">Stop</button>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 1: OVERVIEW ==================== -->
+    <section class="tab-panel active" id="tab-overview">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Tracked Wallets</div>
+          <div class="kpi-value" id="kpiTotal">0</div>
+          <div class="kpi-sub" id="kpiScanned">Stage 1: 0 | Deep 4-Gate: 0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Elite &amp; Good (Copyable)</div>
+          <div class="kpi-value pos" id="kpiElite">0</div>
+          <div class="kpi-sub" id="kpiEliteSub">Lolos 3–4/4 Gate (7D/30D)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Alive &amp; Active (&lt;14d)</div>
+          <div class="kpi-value" style="color:var(--cyan)" id="kpiActive">0</div>
+          <div class="kpi-sub">Belum di-Deep Audit</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Noise Filtered</div>
+          <div class="kpi-value neg" id="kpiNoise">0</div>
+          <div class="kpi-sub" id="kpiNoiseSub">Bot Sniper, Spam, Dormant, Loser</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total SOL Saldo Terlacak</div>
+          <div class="kpi-value" id="kpiSol">0 SOL</div>
+          <div class="kpi-sub">Saldo on-chain gabungan</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Institutional 4-Gate Audit (Strict 7D / 30D — Anti Sold&gt;Bought &amp; Dead Bags!)</div>
+          <div class="controls-row">
+            <select id="stage2WindowDays">
+              <option value="7">Strict 7D Window (Recommended)</option>
+              <option value="30">Strict 30D Window (Deeper)</option>
+            </select>
+            <button class="btn" onclick="startStage1(false)">1. Fast Triage 927</button>
+            <button class="btn btn-primary" onclick="startStage2(35, false)">▶ 2. Audit 35 Active (Strict 7D/30D)</button>
+            <button class="btn" onclick="reAuditTopExisting()" title="Audit ulang wallet yang sudah kena Stage 2 lama pakai engine 4-Gate Strict 7D baru">↻ Re-Audit Existing (v2)</button>
+            <a class="btn btn-amber" href="/api/export/padre?topN=50&minScore=50" target="_blank">⬇ Export Top Elite Padre JSON</a>
+          </div>
+        </div>
+        <div class="card-body muted">
+          <b>Engine v2 (Setara GMGN Giga Beta 4-Gate):</b><br />
+          • <b>Gate 1 (Trustworthy):</b> Minimal 4 closed tokens &amp; buang distorsi <i>Sold &gt; Bought</i> (seperti kasus <code>f_TheTradoor</code> jual bag lama).<br />
+          • <b>Gate 2 (Earning Now):</b> Strict 7D/30D Realized PnL &gt; 0 &amp; Net Cashflow sehat (langsung tangkap <i>"Was good 2 bulan lalu, sekarang boncos"</i>!).<br />
+          • <b>Gate 3 (Human Fillable):</b> Median Hold &ge; 25 detik (bunuh sniper bot 3–14s) &amp; size beli 0.15–50 SOL.<br />
+          • <b>Gate 4 (Cuts Losses):</b> Hitung open/rugged bags yang tidak pernah dijual + cek bukan 1-hit wonder (&lt;85% profit dari 1 koin).
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">👑 Top Copyable Elite &amp; Good Wallets (Zero Loser / Zero Bot)</div>
+          <span class="muted mono" style="font-size:11px;">Urut: ELITE (4/4) → GOOD (3/4) → Score Tertinggi · Semua Loser/Bot dipisah ke Tab <b>927 Auditor</b></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Wallet &amp; Verified Identity</th>
+                <th>Style / Archetype</th>
+                <th>Tx/Day (~Wk)</th>
+                <th>Tier / 4-Gate</th>
+                <th>Score</th>
+                <th>Span</th>
+                <th>WR</th>
+                <th>Realized / Net</th>
+                <th>Hold</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="eliteLeaderboardBody">
+              <tr><td colspan="11" class="muted" style="text-align:center;padding:24px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="kolRadarCard" style="display:none;">
+        <div class="card-header">
+          <div class="card-title">⚡ Verified KOL Fast / Hyper Scalpers (Narrative Radar — Jangan Blind Copy!)</div>
+          <span class="muted mono" style="font-size:11px;">KOL asli yang entry-exit terlalu cepat (&lt;15s / &gt;60 tx/d) — pakai untuk baca meta/narasi, bukan blind copy</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Verified KOL</th>
+                <th>Style</th>
+                <th>Tx/Day (~Wk)</th>
+                <th>Tier / Gates</th>
+                <th>Span</th>
+                <th>WR</th>
+                <th>Realized / Net</th>
+                <th>Hold</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="kolRadarBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: 927 AUDITOR ==================== -->
+    <section class="tab-panel" id="tab-auditor">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Forensic Auditor — All 927 Tracked Wallets</div>
+          <div class="controls-row">
+            <input type="text" id="searchWallet" placeholder="Cari nama / address..." style="width:210px;" />
+            <select id="sortWallets">
+              <option value="copyScore">Sort: Copy Score</option>
+              <option value="pnl">Sort: Net Cashflow</option>
+              <option value="winRate">Sort: Win Rate</option>
+              <option value="solBalance">Sort: SOL Balance</option>
+              <option value="lastTxTime">Sort: Most Recent</option>
+            </select>
+            <button class="btn btn-primary" onclick="startStage2(35, false)">▶ Deep Audit 35 Active</button>
+            <button class="btn btn-amber" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
+          </div>
+          <div class="filter-pills" id="tierFilterPills"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Wallet &amp; Identity</th>
+                <th>Style / Archetype</th>
+                <th>Tx/Day (~Wk)</th>
+                <th>Tier</th>
+                <th>SOL</th>
+                <th>Active</th>
+                <th>Gates / Score</th>
+                <th>Span</th>
+                <th>WR</th>
+                <th>Realized / Net</th>
+                <th>Hold</th>
+                <th>Tools</th>
+              </tr>
+            </thead>
+            <tbody id="allWalletsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: INVESTIGATE & TRACER ==================== -->
+    <section class="tab-panel" id="tab-tracer">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🕵️ Wallet Investigator, Side-Wallet &amp; Bridge Tracer (Arkham + Solscan + 4-Gate + Hop Graph)</div>
+          <div class="controls-row">
+            <input type="text" id="traceAddressInput" placeholder="Paste Solana Wallet Address (bisa dari dalam atau luar list)..." style="width:370px;" />
+            <select id="invWindowDays">
+              <option value="7">7D Strict Audit</option>
+              <option value="30">30D Strict Audit</option>
+            </select>
+            <select id="traceDepth">
+              <option value="2">2 Hops + Shared CEX + Bridges</option>
+              <option value="1">1 Hop Fast</option>
+            </select>
+            <button class="btn btn-primary" id="btnRunFullInvestigate" onclick="runFullInvestigation(false)">🔍 Full Investigate + Trace</button>
+            <button class="btn" onclick="runFullInvestigation(true)" title="Bypass cache">↻ Fresh</button>
+          </div>
+        </div>
+
+        <!-- External Investigation Toolbar (Arkham, Solscan, Bridges, GMGN, Axiom, Cielo, Orb) -->
+        <div class="card-body" id="investigatorDossier" style="display:none;border-bottom:1px solid var(--border);background:var(--bg-elev);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;" id="invVerdictTitle">Verdict</div>
+              <div class="mono muted" style="font-size:11.5px;margin-top:2px;" id="invSubMeta"></div>
+            </div>
+            <div class="toolbar-links" id="invExternalLinks"></div>
+          </div>
+
+          <div class="gate-grid" id="invGateGrid"></div>
+
+          <div style="margin-top:8px;">
+            <span class="muted" style="font-size:11px;text-transform:uppercase;font-weight:600;">Daily Net Cashflow (SOL) — Cek Konsistensi vs Merah Beruntun:</span>
+            <div class="daily-bar-row" id="invDailyBars"></div>
+          </div>
+
+          <div id="invBridgeBanner" style="display:none;margin-top:10px;padding:8px 12px;border-radius:6px;background:rgba(232,121,249,0.1);border:1px solid rgba(232,121,249,0.4);font-size:12px;"></div>
+        </div>
+
+        <div class="card-body">
+          <div class="tracer-grid">
+            <div>
+              <div class="graph-canvas-wrap">
+                <svg id="traceGraphSvg" class="graph-svg"></svg>
+                <div class="graph-legend">
+                  <span><i class="legend-dot" style="background:#00e599"></i>Target</span>
+                  <span><i class="legend-dot" style="background:#38bdf8"></i>Shared CEX Deposit (95%)</span>
+                  <span><i class="legend-dot" style="background:#e879f9"></i>Cross-Chain Bridge</span>
+                  <span><i class="legend-dot" style="background:#a78bfa"></i>Direct Transfer / SPL</span>
+                  <span><i class="legend-dot" style="background:#ffb703"></i>Personal CEX Deposit</span>
+                  <span><i class="legend-dot" style="background:#ff4d6d"></i>CEX Hot Wallet</span>
+                </div>
+              </div>
+              <div class="muted mono" id="traceStatsLine" style="margin-top:8px;font-size:11.5px;">
+                Paste address di atas (contoh: <code>4LohkHqDKtb6ooEwPzgX5m6Q9UXyFmgeNe2NBdy2UF56</code>) lalu klik <b>Full Investigate + Trace</b>.
+              </div>
+            </div>
+
+            <div class="card" style="margin:0;">
+              <div class="card-header">
+                <div class="card-title">Suspected Side Wallets</div>
+                <span class="mono muted" id="suspectsCountBadge">0 found</span>
+              </div>
+              <div id="suspectsList" style="max-height:470px;overflow-y:auto;">
+                <div class="card-body muted">Belum ada hasil trace.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Cached Traces (0 Credits to Re-open)</div>
+        </div>
+        <div class="card-body controls-row" id="cachedTracesList">
+          <span class="muted">Belum ada history trace.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: ALPHA HUNTER (BEVAN METHOD) ==================== -->
+    <section class="tab-panel" id="tab-alpha">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔥 Alpha Wallet Hunter — Cari Smart Money Baru di Luar List (Metode Bevan Pramudito)</div>
+          <div class="controls-row">
+            <button class="btn btn-amber" id="btnLoadRunners" onclick="loadTrendingRunners()">⚡ 1. Auto-Load Trending Runners (0 cr)</button>
+            <a class="btn" href="/api/export/alpha-padre" target="_blank">⬇ Export Discovered Alpha ke Padre JSON</a>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="muted" style="margin-bottom:10px;">
+            <b>Cara Kerja (sesuai podcast Bevan):</b> Pilih 2–5 koin Solana yang baru pumping/runner → sistem scan buyer aktif on-chain → <b>prioritaskan wallet yang muncul di &ge;2 koin runner berbeda</b> → otomatis saring pakai <b>4-Gate Strict 7D Audit</b> untuk buang sniper bot &amp; wallet boncos!
+          </div>
+
+          <div id="trendingRunnersBox" class="controls-row" style="margin-bottom:10px;"></div>
+
+          <div class="form-group">
+            <label>Daftar Token CA Runner (1 alamat CA per baris — max 6 token):</label>
+            <textarea id="alphaMintsInput" rows="4" placeholder="Paste Solana Token CA yang baru pump/runner di sini (atau klik Auto-Load Trending Runners di atas)..."></textarea>
+          </div>
+
+          <div class="controls-row">
+            <label class="muted">Audit Max Candidates:
+              <input type="number" id="alphaMaxCand" value="15" min="5" max="40" style="width:65px;" />
+            </label>
+            <select id="alphaWindowDays">
+              <option value="7">Strict 7D Audit</option>
+              <option value="30">Strict 30D Audit</option>
+            </select>
+            <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+              <input type="checkbox" id="alphaOnlyNew" checked /> Hanya wallet BARU di luar 927 list
+            </label>
+            <button class="btn btn-primary" id="btnStartAlphaHunt" onclick="startAlphaHuntUI()">▶ 2. Hunt Alpha Wallets</button>
+            <button class="btn btn-red" id="btnStopAlphaHunt" onclick="stopAlphaHuntUI()" style="display:none;">■ Stop</button>
+          </div>
+          <div class="mono muted" id="alphaStatusLine" style="margin-top:8px;font-size:11.5px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">💎 Discovered Fresh Alpha Wallets (4-Gate Filtered)</div>
+          <span class="mono muted" id="alphaFoundBadge">0 wallets</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Wallet</th>
+                <th>Status</th>
+                <th>Runners Hit</th>
+                <th>4-Gate</th>
+                <th>Score</th>
+                <th>SOL Bal</th>
+                <th>7D WR</th>
+                <th>Realized / Net</th>
+                <th>Med Hold</th>
+                <th>Investigate &amp; External</th>
+              </tr>
+            </thead>
+            <tbody id="alphaResultsBody">
+              <tr><td colspan="10" class="muted" style="text-align:center;padding:24px;">Belum ada hasil hunt. Klik <b>Auto-Load Trending Runners</b> atau paste CA koin runner di atas lalu klik <b>Hunt Alpha Wallets</b>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: CONSENSUS PING ==================== -->
+    <section class="tab-panel" id="tab-pinger">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📡 Consensus Buy Ping Engine (ala Narrative Ping)</div>
+          <div class="controls-row">
+            <label class="muted">Min Wallets:
+              <input type="number" id="pingMinWallets" value="2" min="2" max="10" style="width:55px;" />
+            </label>
+            <label class="muted">Window (min):
+              <input type="number" id="pingWindowMin" value="15" min="1" max="120" style="width:65px;" />
+            </label>
+            <label class="muted">Watch Top N:
+              <input type="number" id="pingWatchTop" value="20" min="5" max="60" style="width:65px;" />
+            </label>
+            <button class="btn btn-primary" id="btnStartPing" onclick="startPingerUI()">▶ Start Live Ping</button>
+            <button class="btn btn-red" id="btnStopPing" onclick="stopPingerUI()" style="display:none;">■ Stop</button>
+          </div>
+        </div>
+        <div class="card-body muted" id="pingerStatusLine">
+          Monitor Elite Wallets hasil audit kamu secara live. Jika <b>&ge; 2 wallet</b> beli token yang sama dalam 15 menit → langsung muncul <b>CONSENSUS BUY ALERT</b> lengkap dengan MC, Liquidity, Rugcheck &amp; tombol 1-klik <b>trade.padre.gg</b>.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔥 Consensus Buys (High Conviction Signals)</div>
+          <span class="mono muted" id="consensusCount">0 alerts</span>
+        </div>
+        <div id="consensusFeed">
+          <div class="card-body muted">Belum ada Consensus Buy.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Tracked Wallet Swaps (Raw Feed)</div>
+          <span class="mono muted" id="rawPingsCount">0 swaps</span>
+        </div>
+        <div id="rawPingsFeed">
+          <div class="card-body muted">Belum ada swap masuk.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal">
+      <div class="card-header">
+        <div class="card-title">⚙ Local Configuration (.env)</div>
+        <button class="btn btn-xs" onclick="closeSettings()">✕</button>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Helius Free API Key (dari dashboard.helius.dev → API Keys)</label>
+          <input type="password" id="cfgHeliusKey" placeholder="Paste API key Helius kamu di sini..." />
+          <div class="muted" style="font-size:11px;margin-top:4px;" id="cfgKeyHint">Disimpan lokal di file .env.</div>
+        </div>
+        <div class="form-group">
+          <label>Path File List Wallet (JSON)</label>
+          <input type="text" id="cfgWalletPath" />
+        </div>
+        <div class="form-group">
+          <label>Telegram Bot Token (Opsional — notif Consensus Ping)</label>
+          <input type="password" id="cfgTgToken" placeholder="123456:ABC..." />
+        </div>
+        <div class="form-group">
+          <label>Telegram Chat ID (Opsional)</label>
+          <input type="text" id="cfgTgChatId" placeholder="Contoh: 123456789" />
+        </div>
+        <div class="controls-row" style="justify-content:flex-end;margin-top:16px;">
+          <button class="btn" onclick="testHeliusUI()">Test Connection</button>
+          <button class="btn btn-primary" onclick="saveSettingsUI()">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
