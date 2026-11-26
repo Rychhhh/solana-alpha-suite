@@ -185,16 +185,34 @@
         <div class="card-header">
           <div class="card-title">Forensic Auditor — All 927 Tracked Wallets</div>
           <div class="controls-row">
-            <input type="text" id="searchWallet" placeholder="Cari nama / address..." style="width:210px;" />
+            <input type="text" id="searchWallet" placeholder="Cari nama / address..." style="width:190px;" />
             <select id="sortWallets">
               <option value="copyScore">Sort: Copy Score</option>
-              <option value="pnl">Sort: Net Cashflow</option>
-              <option value="winRate">Sort: Win Rate</option>
+              <option value="consistency">Sort: Consistency (Green Days)</option>
+              <option value="winRate">Sort: Win Rate %</option>
+              <option value="pnl">Sort: Net Cashflow SOL</option>
+              <option value="profitFactor">Sort: Profit Factor</option>
               <option value="solBalance">Sort: SOL Balance</option>
               <option value="lastTxTime">Sort: Most Recent</option>
             </select>
             <button class="btn btn-primary" onclick="startStage2(35, false)">▶ Deep Audit 35 Active</button>
+            <button class="btn" onclick="reAuditTopExisting()" title="Re-audit ulang pakai engine v2.1 anti-dust & consistency">↻ Re-Audit Existing</button>
             <button class="btn btn-amber" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
+          </div>
+          <div class="controls-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;">
+            <button class="btn btn-xs btn-primary" onclick="applyHighWrPreset()" title="WR >= 55%, Net > 0, Closed >= 6, Hold >= 25s, Span >= 1d">💎 Preset: High-WR &amp; Consistent</button>
+            <button class="btn btn-xs" onclick="resetCustomFilters()">Reset Filter</button>
+            <label class="muted">Min WR%: <input type="number" id="fltMinWr" value="0" min="0" max="100" style="width:52px;" /></label>
+            <label class="muted">Min Closed: <input type="number" id="fltMinClosed" value="0" min="0" max="200" style="width:52px;" /></label>
+            <label class="muted">Min Hold(s): <input type="number" id="fltMinHold" value="0" min="0" max="3600" style="width:56px;" /></label>
+            <label class="muted">Min Span(d): <input type="number" id="fltMinSpan" value="0" min="0" max="30" step="0.5" style="width:52px;" /></label>
+            <label class="muted" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" id="fltNetPos" /> Net SOL &gt; 0
+            </label>
+            <label class="muted" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" id="fltGreenDays" /> Green Days &ge; 50%
+            </label>
+            <span class="mono muted" id="fltMatchCount"></span>
           </div>
           <div class="filter-pills" id="tierFilterPills"></div>
         </div>
@@ -207,10 +225,10 @@
                 <th>Tx/Day (~Wk)</th>
                 <th>Tier</th>
                 <th>SOL</th>
-                <th>Active</th>
                 <th>Gates / Score</th>
                 <th>Span</th>
-                <th>WR</th>
+                <th>WR (Closed)</th>
+                <th>Green Days / PF</th>
                 <th>Realized / Net</th>
                 <th>Hold</th>
                 <th>Tools</th>

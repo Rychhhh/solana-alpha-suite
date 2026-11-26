@@ -326,10 +326,55 @@ function setTierFilter(t) {
 
 $('searchWallet').addEventListener('input', renderWalletsTable);
 $('sortWallets').addEventListener('change', renderWalletsTable);
+['fltMinWr', 'fltMinClosed', 'fltMinHold', 'fltMinSpan', 'fltNetPos', 'fltGreenDays'].forEach((id) => {
+  const el = $(id);
+  if (el) el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', renderWalletsTable);
+});
+
+function applyHighWrPreset() {
+  currentTierFilter = 'ALL';
+  $('fltMinWr').value = '55';
+  $('fltMinClosed').value = '6';
+  $('fltMinHold').value = '25';
+  $('fltMinSpan').value = '1';
+  $('fltNetPos').checked = true;
+  $('fltGreenDays').checked = true;
+  $('sortWallets').value = 'consistency';
+  renderTierPills(summaryData);
+  renderWalletsTable();
+  showToast('Filter aktif: WR >= 55%, Net > 0, Closed >= 6, Hold >= 25s, Span >= 1d, Green Days >= 50%!');
+}
+
+function resetCustomFilters() {
+  $('fltMinWr').value = '0';
+  $('fltMinClosed').value = '0';
+  $('fltMinHold').value = '0';
+  $('fltMinSpan').value = '0';
+  $('fltNetPos').checked = false;
+  $('fltGreenDays').checked = false;
+  renderWalletsTable();
+}
+
+function getConsistencyMetrics(d) {
+  if (!d) return { greenDays: 0, activeDays: 0, pct: 0, pf: 0 };
+  const list = Array.isArray(d.dailyPnl) ? d.dailyPnl : [];
+  const activeDays = typeof d.activeDays === 'number' ? d.activeDays : list.length;
+  const greenDays = typeof d.greenDays === 'number' ? d.greenDays : list.filter((x) => x.netSol > 0).length;
+  const pct = typeof d.dailyConsistencyPct === 'number' ? d.dailyConsistencyPct : (activeDays > 0 ? Math.round((greenDays / activeDays) * 100) : 0);
+  const pf = typeof d.profitFactor === 'number' ? d.profitFactor : 0;
+  return { greenDays, activeDays, pct, pf };
+}
 
 function renderWalletsTable() {
   const q = $('searchWallet').value.trim().toLowerCase();
   const sortBy = $('sortWallets').value;
+  const minWr = Number($('fltMinWr')?.value || 0);
+  const minClosed = Number($('fltMinClosed')?.value || 0);
+  const minHold = Number($('fltMinHold')?.value || 0);
+  const minSpan = Number($('fltMinSpan')?.value || 0);
+  const netPosOnly = Boolean($('fltNetPos')?.checked);
+  const greenDaysOnly = Boolean($('fltGreenDays')?.checked);
+  const hasNumericFilter = minWr > 0 || minClosed > 0 || minHold > 0 || minSpan > 0 || netPosOnly || greenDaysOnly;
 
   let rows = allWallets.filter((w) => {
     if (currentTierFilter === 'STYLE:VERIFIED_KOLS') {
@@ -340,6 +385,18 @@ function renderWalletsTable() {
     } else if (currentTierFilter !== 'ALL' && w.tier !== currentTierFilter) {
       return false;
     }
+    if (hasNumericFilter) {
+      const d = w.deep;
+      if (!d) return false;
+      const netVal = typeof d.strictNetFlowSol === 'number' ? d.strictNetFlowSol : d.realizedPnlSol;
+      const cm = getConsistencyMetrics(d);
+      if ((d.winRate || 0) < minWr) return false;
+      if ((d.closedTokens || 0) < minClosed) return false;
+      if ((d.medianHoldSec ?? -1) < minHold) return false;
+      if ((d.spanDays || 0) < minSpan) return false;
+      if (netPosOnly && (netVal <= 0 || (d.realizedPnlSol || 0) <= 0)) return false;
+      if (greenDaysOnly && cm.activeDays >= 2 && cm.pct < 50) return false;
+    }
     if (q) {
       const hay = `${w.name} ${w.address} ${w.identity?.handle || ''} ${w.style?.label || ''}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -347,8 +404,16 @@ function renderWalletsTable() {
     return true;
   });
 
+  if ($('fltMatchCount')) $('fltMatchCount').textContent = `Showing ${rows.length} wallets`;
+
   rows.sort((a, b) => {
     if (sortBy === 'copyScore') return (b.copyScore ?? -1) - (a.copyScore ?? -1) || (b.solBalance ?? -1) - (a.solBalance ?? -1);
+    if (sortBy === 'consistency') {
+      const ca = getConsistencyMetrics(a.deep);
+      const cb = getConsistencyMetrics(b.deep);
+      return (cb.pct - ca.pct) || ((b.deep?.winRate ?? -1) - (a.deep?.winRate ?? -1)) || ((b.deep?.strictNetFlowSol ?? -9999) - (a.deep?.strictNetFlowSol ?? -9999));
+    }
+    if (sortBy === 'profitFactor') return (getConsistencyMetrics(b.deep).pf - getConsistencyMetrics(a.deep).pf) || ((b.deep?.winRate ?? -1) - (a.deep?.winRate ?? -1));
     if (sortBy === 'pnl') return (b.deep?.strictNetFlowSol ?? b.deep?.realizedPnlSol ?? -9999) - (a.deep?.strictNetFlowSol ?? a.deep?.realizedPnlSol ?? -9999);
     if (sortBy === 'winRate') return (b.deep?.winRate ?? -1) - (a.deep?.winRate ?? -1);
     if (sortBy === 'solBalance') return (b.solBalance ?? -1) - (a.solBalance ?? -1);
@@ -362,6 +427,8 @@ function renderWalletsTable() {
     const netVal = d ? (typeof d.strictNetFlowSol === 'number' ? d.strictNetFlowSol : d.realizedPnlSol) : null;
     const rCls = d ? (d.realizedPnlSol >= 0 ? 'pos' : 'neg') : 'muted';
     const nCls = netVal !== null ? (netVal >= 0 ? 'pos' : 'neg') : 'muted';
+    const cm = getConsistencyMetrics(d);
+    const consStr = d ? `${cm.activeDays ? `<span class="${cm.pct >= 50 ? 'pos' : 'neg'}">${cm.greenDays}/${cm.activeDays}d (${cm.pct}%)</span>` : '-'}${cm.pf ? ` · <b>${cm.pf}x</b>` : ''}` : '-';
     return `
       <tr>
         <td><b style="cursor:pointer;" onclick="copyText('${w.address}')">${escHtml(w.emoji)} ${escHtml(w.name)}</b> <span class="mono muted" style="font-size:10.5px;">${shortAddr(w.address)}</span>${identityBadge(w)}</td>
@@ -369,10 +436,10 @@ function renderWalletsTable() {
         <td class="mono muted" style="font-size:11px;">${escHtml(w.cadence?.label || '-')}</td>
         <td><span class="badge badge-${w.tier}">${w.tier}</span></td>
         <td class="mono">${w.solBalance !== null ? w.solBalance.toFixed(1) : '-'}</td>
-        <td class="mono muted">${fmtAgo(w.lastTxTime)}</td>
         <td class="mono">${d ? `${gatePill(d)} <b>${d.copyScore}</b>` : '-'}</td>
         <td class="mono">${fmtSpan(d)}</td>
-        <td class="mono">${d ? `${d.winRate}%` : '-'}</td>
+        <td class="mono">${d ? `<b>${d.winRate}%</b> <span class="muted">(${d.closedTokens})</span>` : '-'}</td>
+        <td class="mono" style="font-size:11px;">${consStr}</td>
         <td class="mono">${d ? `<span class="${rCls}">${d.realizedPnlSol >= 0 ? '+' : ''}${d.realizedPnlSol}</span> <span class="muted">/</span> <span class="${nCls}">${netVal >= 0 ? '+' : ''}${netVal}</span>` : '-'}</td>
         <td class="mono">${d ? fmtHold(d.medianHoldSec) : '-'}</td>
         <td>
