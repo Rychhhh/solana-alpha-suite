@@ -6,6 +6,9 @@ const { testConnection, getCreditStats } = require('./lib/helius');
 const {
   getMergedWallets,
   computeSummary,
+  importWalletsFromInput,
+  importAndAutoScan,
+  clearCustomWallets,
   runStage1Triage,
   runStage2DeepAudit,
   investigateWallet,
@@ -184,13 +187,35 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ...result, credits: getCreditStats() });
     }
 
+    if (pathname === '/api/wallets/import' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (body.autoScan) {
+        importAndAutoScan(body.input, {
+          mode: body.mode || 'merge',
+          windowDays: Number(body.windowDays) || 30,
+          minSol: Number(body.minSol ?? 0),
+          maxScan: Number(body.maxScan) || 100
+        }).catch(() => {});
+        const preview = importWalletsFromInput(body.input, { mode: body.mode || 'merge' });
+        return sendJson(res, 200, { ...preview, autoScanning: true, job: getJobState() });
+      }
+      const result = importWalletsFromInput(body.input, { mode: body.mode || 'merge' });
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === '/api/wallets/clear-custom' && req.method === 'POST') {
+      return sendJson(res, 200, clearCustomWallets());
+    }
+
     if (pathname === '/api/export/padre' && req.method === 'GET') {
       const topN = Number(urlObj.searchParams.get('topN') || 50);
       const minScore = Number(urlObj.searchParams.get('minScore') || 50);
-      const data = exportPadreJson({ topN, minScore });
+      const group = (urlObj.searchParams.get('group') || '').trim();
+      const data = exportPadreJson({ topN, minScore, group });
+      const fname = group ? `padre-${group.toLowerCase()}.json` : 'padre-elite-wallets.json';
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="padre-elite-wallets.json"'
+        'Content-Disposition': `attachment; filename="${fname}"`
       });
       return res.end(JSON.stringify(data, null, 2));
     }

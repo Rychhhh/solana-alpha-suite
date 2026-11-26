@@ -234,6 +234,14 @@ function renderOverview(s) {
   $('kpiNoiseSub').textContent = `Auto Bot: ${s.styleCounts?.AUTO_BOT || 0} | Dormant/Empty: ${(s.counts.DORMANT || 0) + (s.counts.EMPTY || 0)} | Loser: ${s.counts.LOSER || 0}`;
   $('kpiSol').textContent = `${s.totalSolTracked.toLocaleString()} SOL`;
 
+  if ($('auditorTitleCount')) $('auditorTitleCount').textContent = `${s.total}${s.customCount ? ` (+${s.customCount} custom)` : ''}`;
+  if (s.groups) {
+    if ($('grpLowCapCnt')) $('grpLowCapCnt').textContent = `${s.groups.lowCapRunners || 0} wallets`;
+    if ($('grpHighMcCnt')) $('grpHighMcCnt').textContent = `${s.groups.highMc || 0} wallets`;
+    if ($('grpSwingCnt')) $('grpSwingCnt').textContent = `${s.groups.swingHighWr || 0} wallets`;
+    if ($('grpConsistentCnt')) $('grpConsistentCnt').textContent = `${s.groups.consistentSnipers || 0} wallets`;
+  }
+
   const tbody = $('eliteLeaderboardBody');
   if (!s.topElite || s.topElite.length === 0) {
     tbody.innerHTML = '<tr><td colspan="11" class="muted" style="text-align:center;padding:24px;">Belum ada wallet ELITE / GOOD. Lanjut klik <b>2. Audit 35 Active</b> untuk scan sisa wallet aktif.</td></tr>';
@@ -496,18 +504,19 @@ function renderWalletsTable() {
 
 async function startCalmSwingAudit(maxWallets = 100) {
   try {
+    const minSol = Number($('auditMinSol')?.value ?? 0.2);
     await api('/api/audit/stage2', {
       method: 'POST',
       body: JSON.stringify({
         maxWallets,
-        minSol: 0.2,
+        minSol,
         onlyActiveDays: 14,
         windowDays: 30,
         maxPages: 4,
         prioritizeMode: 'calm_swing'
       })
     });
-    showToast(`💎 Memburu hingga ${maxWallets} wallet tenang (Low Tx/Hr, 30D Window) untuk Swing, High-MC & Low-Cap Runners!`);
+    showToast(`💎 Memburu hingga ${maxWallets} wallet tenang (Min ${minSol} SOL, 30D Window) untuk Swing, High-MC & Low-Cap Runners!`);
     refreshWallets();
   } catch (err) { showToast(err.message, true); }
 }
@@ -523,11 +532,61 @@ async function startStage1(forceAll) {
 async function startStage2(maxWallets, reAuditExisting = false) {
   try {
     const windowDays = Number($('stage2WindowDays')?.value) || 7;
+    const minSol = Number($('auditMinSol')?.value ?? 0.2);
     await api('/api/audit/stage2', {
       method: 'POST',
-      body: JSON.stringify({ maxWallets, minSol: 0.2, onlyActiveDays: 14, windowDays, maxPages: windowDays >= 30 ? 4 : 3, reAuditExisting })
+      body: JSON.stringify({ maxWallets, minSol, onlyActiveDays: 14, windowDays, maxPages: windowDays >= 30 ? 4 : 3, reAuditExisting })
     });
-    showToast(`Strict ${windowDays}D 4-Gate Audit dimulai untuk ${maxWallets} wallet...`);
+    showToast(`Strict ${windowDays}D Audit dimulai (Min ${minSol} SOL, hingga ${maxWallets} wallet)...`);
+    refreshWallets();
+  } catch (err) { showToast(err.message, true); }
+}
+
+// === PASTE / UPLOAD JSON IMPORT MODAL ===
+function openImportModal() { $('importModal').classList.add('open'); }
+function closeImportModal() { $('importModal').classList.remove('open'); }
+
+function handleImportFile(ev) {
+  const file = ev.target?.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    $('impJsonTextarea').value = String(reader.result || '');
+    showToast(`File "${file.name}" dimuat! Klik ⚡ Import & Auto-Scan Sekarang.`);
+  };
+  reader.readAsText(file);
+}
+
+async function submitImportUI(autoScan) {
+  const input = $('impJsonTextarea').value.trim();
+  if (!input) return showToast('Tempel JSON atau daftar address Solana dulu!', true);
+  try {
+    const res = await api('/api/wallets/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        input,
+        mode: $('impMode').value,
+        autoScan,
+        minSol: Number($('impMinSol').value ?? 0),
+        windowDays: Number($('impWindowDays').value || 30),
+        maxScan: 100
+      })
+    });
+    closeImportModal();
+    showToast(autoScan
+      ? `✅ ${res.importedCount} wallet diimport! Auto-scan 30D berjalan otomatis...`
+      : `✅ ${res.importedCount} wallet ditambahkan ke daftar (${res.totalCustomCount} custom).`);
+    refreshWallets();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function clearCustomImportsUI() {
+  try {
+    await api('/api/wallets/clear-custom', { method: 'POST' });
+    showToast('Custom imports dibersihkan (kembali ke list default).');
+    closeImportModal();
     refreshWallets();
   } catch (err) { showToast(err.message, true); }
 }

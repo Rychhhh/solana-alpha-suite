@@ -181,11 +181,60 @@
 
     <!-- ==================== TAB 2: 927 AUDITOR ==================== -->
     <section class="tab-panel" id="tab-auditor">
+      <!-- Auto-Grouping Worth-It Cards (1-Klik Filter & Export per Gaya) -->
+      <div class="gate-grid" id="worthItGroupCards" style="margin-top:0;margin-bottom:12px;">
+        <div class="gate-card pass">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>🌱 Low-Cap → $100K</b>
+            <span class="mono pos" id="grpLowCapCnt">0</span>
+          </div>
+          <div class="muted" style="font-size:11px;margin:4px 0 8px;">Entry &le; $25K, hold sabar &ge; 2m, max MC $80K+, Net &gt; 0</div>
+          <div class="controls-row">
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('lowcap_runner')">Lihat</button>
+            <a class="btn btn-xs btn-amber" href="/api/export/padre?group=LOWCAP_RUNNER" target="_blank">⬇ Padre JSON</a>
+          </div>
+        </div>
+        <div class="gate-card pass">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>🏛 High-MC (&gt;$25K)</b>
+            <span class="mono pos" id="grpHighMcCnt">0</span>
+          </div>
+          <div class="muted" style="font-size:11px;margin:4px 0 8px;">Entry mapan &ge; $25K, WR &ge; 45%, Hold &ge; 25s, Net &gt; 0</div>
+          <div class="controls-row">
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('high_mc')">Lihat</button>
+            <a class="btn btn-xs btn-amber" href="/api/export/padre?group=HIGH_MC" target="_blank">⬇ Padre JSON</a>
+          </div>
+        </div>
+        <div class="gate-card pass">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>💎 Swing High-WR</b>
+            <span class="mono pos" id="grpSwingCnt">0</span>
+          </div>
+          <div class="muted" style="font-size:11px;margin:4px 0 8px;">Hold &ge; 10 menit, WR &ge; 45%, Net &gt; 0 (anti-scalper!)</div>
+          <div class="controls-row">
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('swing')">Lihat</button>
+            <a class="btn btn-xs btn-amber" href="/api/export/padre?group=SWING" target="_blank">⬇ Padre JSON</a>
+          </div>
+        </div>
+        <div class="gate-card pass">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>🎯 All Consistent Worth-It</b>
+            <span class="mono pos" id="grpConsistentCnt">0</span>
+          </div>
+          <div class="muted" style="font-size:11px;margin:4px 0 8px;">WR &ge; 55%, Green Days &ge; 50%, Hold &ge; 25s, Net &gt; 0</div>
+          <div class="controls-row">
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('consistent')">Lihat</button>
+            <a class="btn btn-xs btn-amber" href="/api/export/padre?group=WORTH_IT" target="_blank">⬇ Padre JSON</a>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Forensic Auditor — All 927 Tracked Wallets</div>
+          <div class="card-title">Forensic Auditor &amp; Auto-Grouping (<span id="auditorTitleCount">927</span> Wallets)</div>
           <div class="controls-row">
-            <input type="text" id="searchWallet" placeholder="Cari nama / address..." style="width:190px;" />
+            <button class="btn btn-primary" onclick="openImportModal()" title="Tempel JSON Padre / list address lalu otomatis scan & group!">📋 Paste / Upload JSON</button>
+            <input type="text" id="searchWallet" placeholder="Cari nama / address..." style="width:170px;" />
             <select id="sortWallets">
               <option value="copyScore">Sort: Copy Score</option>
               <option value="consistency">Sort: Consistency (Green Days)</option>
@@ -195,15 +244,20 @@
               <option value="solBalance">Sort: SOL Balance</option>
               <option value="lastTxTime">Sort: Most Recent</option>
             </select>
+            <select id="auditMinSol" title="Minimum saldo SOL wallet untuk ikut Stage 2">
+              <option value="0">Min: 0 SOL (Semua)</option>
+              <option value="0.05">Min: 0.05 SOL</option>
+              <option value="0.2" selected>Min: 0.2 SOL</option>
+              <option value="1">Min: 1 SOL</option>
+            </select>
             <select id="auditBatchSize" title="Jumlah wallet yang di-audit sekali jalan">
               <option value="35">Batch: 35</option>
               <option value="100" selected>Batch: 100</option>
               <option value="300">Batch: All Active</option>
             </select>
-            <button class="btn btn-primary" onclick="startStage2(Number($('auditBatchSize').value)||100, false)">▶ Deep Audit Active</button>
+            <button class="btn btn-primary" onclick="startStage2(Number($('auditBatchSize').value)||100, false)">▶ Deep Audit</button>
             <button class="btn btn-amber" onclick="startCalmSwingAudit(Number($('auditBatchSize').value)||100)" title="Prioritaskan wallet tenang (tx/jam rendah) dengan window 30D untuk nemuin Swing Trader, High-MC >$25K & Low-Cap Runner!">💎 Hunt Calm/Swing (30D)</button>
             <button class="btn" onclick="reAuditTopExisting()" title="Re-audit ulang pakai engine v2.2 (Entry/Exit MC, anti-dust & consistency)">↻ Re-Audit Existing</button>
-            <button class="btn" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
           </div>
           <div class="controls-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;flex-wrap:wrap;">
             <button class="btn btn-xs btn-primary" onclick="applyPreset('lowcap_runner')" title="Entry MC <= $25K, Hold >= 3m, WR >= 50%, Net > 0">🌱 Low-Cap → $100K</button>
@@ -577,6 +631,48 @@
       </div>
     </section>
   </main>
+
+  <!-- Paste / Import JSON Modal -->
+  <div class="modal-backdrop" id="importModal">
+    <div class="modal" style="max-width:680px;">
+      <div class="card-header">
+        <div class="card-title">📋 Paste / Upload JSON Wallet List (Auto-Scan &amp; Grouping)</div>
+        <button class="btn btn-xs" onclick="closeImportModal()">✕</button>
+      </div>
+      <div class="card-body">
+        <div class="muted" style="font-size:12px;margin-bottom:8px;">
+          Tempel langsung JSON export dari <b>Padre / Axiom / BullX / GMGN</b> atau teks daftar address Solana (1 per baris) — sistem akan langsung memvalidasi, scan on-chain (30D), dan mengelompokkan menjadi <b>Low-Cap &rarr; $100K</b>, <b>High-MC &gt;$25K</b>, dan <b>Swing High-WR</b>!
+        </div>
+        <div class="controls-row" style="margin-bottom:8px;">
+          <label class="btn btn-xs" style="cursor:pointer;">
+            📂 Pilih File (.json / .txt)
+            <input type="file" id="impFileInput" accept=".json,.txt,.csv" style="display:none;" onchange="handleImportFile(event)" />
+          </label>
+          <select id="impMode">
+            <option value="merge">Merge ke List Aktif (Tambahkan)</option>
+            <option value="replace_custom">Ganti Custom Imports Sebelumnya</option>
+          </select>
+          <select id="impMinSol">
+            <option value="0" selected>Min SOL: 0 (Semua)</option>
+            <option value="0.2">Min SOL: 0.2+</option>
+            <option value="1">Min SOL: 1+</option>
+          </select>
+          <select id="impWindowDays">
+            <option value="30" selected>Audit: 30D (Swing/LowCap)</option>
+            <option value="7">Audit: 7D Cepat</option>
+          </select>
+        </div>
+        <textarea id="impJsonTextarea" rows="9" placeholder='Paste JSON Padre di sini, misal:&#10;[{"trackedWalletAddress":"5SW7p5...","name":"cooldev","emoji":"🔥"}]&#10;&#10;Atau tempel address per baris:&#10;5SW7p5... cooldev'></textarea>
+        <div class="controls-row" style="justify-content:space-between;margin-top:12px;">
+          <button class="btn btn-red btn-xs" onclick="clearCustomImportsUI()">🗑 Hapus Custom Imports</button>
+          <div class="controls-row">
+            <button class="btn" onclick="submitImportUI(false)">Import Saja</button>
+            <button class="btn btn-primary" onclick="submitImportUI(true)">⚡ Import &amp; Auto-Scan Sekarang</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Settings Modal -->
   <div class="modal-backdrop" id="settingsModal">
