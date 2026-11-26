@@ -26,12 +26,13 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">//</span>
-      <span>SOLANA ALPHA SUITE <span style="color:var(--green);font-size:11px;">v2</span></span>
+      <span>SOLANA ALPHA SUITE <span style="color:var(--green);font-size:11px;">v2.1</span></span>
       <span class="brand-sub" id="walletCountBadge">Loading...</span>
     </div>
 
     <nav class="nav-tabs">
       <button class="nav-tab active" data-tab="overview">Overview</button>
+      <button class="nav-tab" data-tab="bodyguard">🛡 Bodyguard &amp; SOP</button>
       <button class="nav-tab" data-tab="auditor">927 Auditor</button>
       <button class="nav-tab" data-tab="tracer">Investigate &amp; Tracer</button>
       <button class="nav-tab" data-tab="alpha">🔥 Alpha Hunter</button>
@@ -416,6 +417,137 @@
         </div>
       </div>
     </section>
+
+    <!-- ==================== TAB 6: BODYGUARD & SOP ==================== -->
+    <section class="tab-panel" id="tab-bodyguard">
+      <div class="banner" id="bgSessionBanner" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <strong id="bgSessionBadge">Loading WIB clock...</strong>
+          <span class="muted" id="bgSessionMsg" style="margin-left:8px;"></span>
+        </div>
+        <span class="mono" id="bgClockWib">--:--:-- WIB</span>
+      </div>
+
+      <div class="banner" id="bgGuardBanner" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <strong id="bgGuardTitle">🛡 Personal Trading Bodyguard</strong>
+          <div class="muted" id="bgGuardMsg" style="margin-top:2px;font-size:12px;">Klik Scan My Wallet untuk cek saldo, rent, cooldown 30m, dan pelanggaran SOP secara live on-chain.</div>
+        </div>
+        <div class="controls-row">
+          <input type="text" id="bgWalletInput" placeholder="Paste Wallet Padre kamu..." style="width:270px;" />
+          <button class="btn btn-primary" id="btnScanMyWallet" onclick="scanMyWalletUI()">🔍 Scan My Wallet</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Liquid SOL (+ Reclaimable Rent)</div>
+          <div class="kpi-value" id="bgKpiSol">-</div>
+          <div class="kpi-sub" id="bgKpiRent">Rent kosong: -</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Max Safe Bid Size (Ladder)</div>
+          <div class="kpi-value" style="color:var(--cyan)" id="bgKpiBid">-</div>
+          <div class="kpi-sub" id="bgKpiTier">Hapus tombol 0.15 &amp; 0.20!</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Today PnL (WIB)</div>
+          <div class="kpi-value" id="bgKpiTodayPnl">-</div>
+          <div class="kpi-sub" id="bgKpiTodayWl">0W / 0L · 0 oversize</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Overall Mainnet WR</div>
+          <div class="kpi-value" id="bgKpiOverallWr">-</div>
+          <div class="kpi-sub" id="bgKpiOverallSub">Net vs Deposit: -</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Kobe 5/5 Clean Streak</div>
+          <div class="kpi-value pos" id="bgKpiStreak">0d</div>
+          <div class="kpi-sub" id="bgKpiNoGoon">0-Goon Streak: 0d · Today: 0/5</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-bottom:14px;">
+        <!-- Instant 3-Second Trench Filter Checker (0 Helius Credits!) -->
+        <div class="card" style="margin:0;">
+          <div class="card-header">
+            <div class="card-title">⚡ Instant 3-Second Trench Filter (0 Helius Credits)</div>
+          </div>
+          <div class="card-body">
+            <div class="controls-row" style="margin-bottom:10px;">
+              <input type="text" id="bgTokenCaInput" placeholder="Paste Token CA Solana di sini sebelum beli..." style="flex:1;" />
+              <button class="btn btn-primary" id="btnCheckToken3Sec" onclick="checkToken3SecUI()">Cek Filter</button>
+            </div>
+            <div id="bgTokenFilterResult" class="muted" style="font-size:12px;">
+              Paste CA koin dari kolom <b>Soon</b> Padre untuk langsung cek 6 filter wajib (MC $8K–$25K, Vol &ge; 1.5x MC, Liq, DS/Insiders, Top 10, Momentum) + otomatis hitung target <b>SL (-30%), TP1 (+75% Sell Init), TP2 (3x)</b>!
+            </div>
+          </div>
+        </div>
+
+        <!-- Kobe 5/5 Daily Discipline Scorecard -->
+        <div class="card" style="margin:0;">
+          <div class="card-header">
+            <div class="card-title">🏀 Kobe 5/5 Daily Scorecard (<span id="scDateLabel">-</span>)</div>
+            <span class="mono" id="scScoreBadge" style="font-weight:700;color:var(--green);">0 / 5</span>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sc_officeClean" onchange="saveScorecardUI()" />
+                <span><b>1. Jam Kantor Bersih:</b> 0x buka Padre/chart selama 08:30–17:30 WIB</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sc_noGooning" onchange="saveScorecardUI()" />
+                <span><b>2. Dopamin Bersih:</b> 0 gooning hari ini (rem impuls terjaga)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sc_gymAndDinner" onchange="saveScorecardUI()" />
+                <span><b>3. Fisik &amp; Makan:</b> Gym / jalan 20m + makan malam selesai &lt; 19:45</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sc_tradingSop" onchange="saveScorecardUI()" />
+                <span><b>4. Trading SOP:</b> Bid &le; max ladder, 0 revenge/martingale, patuh 30m cooldown</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sc_sleepOnTime" onchange="saveScorecardUI()" />
+                <span><b>5. Tidur 7 Jam:</b> Laptop tutup 23:30 WIB teng, lanjut sleep call sampai 06:45</span>
+              </label>
+            </div>
+            <div class="controls-row" style="margin-top:10px;">
+              <input type="text" id="scNoteInput" placeholder="Catatan singkat hari ini (opsional)..." style="flex:1;" />
+              <button class="btn btn-xs" onclick="saveScorecardUI()">Simpan Note</button>
+            </div>
+            <div class="daily-bar-row" id="scHistoryChips" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- On-Chain Personal Journal Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📒 On-Chain Forensic Trade Journal (By Date WIB)</div>
+          <div class="daily-bar-row" id="bgDailySummaryChips" style="margin:0;"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date &amp; Time (WIB)</th>
+                <th>Token</th>
+                <th>Hold</th>
+                <th>Bought (SOL)</th>
+                <th>Sold (SOL)</th>
+                <th>Net PnL</th>
+                <th>SOP Flags</th>
+              </tr>
+            </thead>
+            <tbody id="bgTradesBody">
+              <tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">Klik <b>🔍 Scan My Wallet</b> di atas untuk memuat riwayat trading on-chain kamu.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Settings Modal -->
@@ -442,6 +574,10 @@
         <div class="form-group">
           <label>Telegram Chat ID (Opsional)</label>
           <input type="text" id="cfgTgChatId" placeholder="Contoh: 123456789" />
+        </div>
+        <div class="form-group">
+          <label>My Personal Padre Wallet (untuk tab 🛡 Bodyguard &amp; SOP)</label>
+          <input type="text" id="cfgMyWallet" placeholder="Paste Solana wallet pribadi kamu..." />
         </div>
         <div class="controls-row" style="justify-content:flex-end;margin-top:16px;">
           <button class="btn" onclick="testHeliusUI()">Test Connection</button>

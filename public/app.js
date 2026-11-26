@@ -92,6 +92,7 @@ function switchTab(tabName) {
   if (tabName === 'tracer') loadCachedTraces();
   if (tabName === 'pinger') refreshPinger();
   if (tabName === 'alpha') refreshAlphaState();
+  if (tabName === 'bodyguard') refreshBodyguard();
 }
 
 // === SETTINGS ===
@@ -105,6 +106,7 @@ async function openSettings() {
       ? `API Key aktif: ${cfg.heliusKeyMasked} (kosongkan jika tidak ingin mengganti)`
       : 'Belum ada API Key. Copy dari dashboard.helius.dev → API Keys.';
     $('cfgWalletPath').value = cfg.walletListPath || '';
+    if ($('cfgMyWallet')) $('cfgMyWallet').value = cfg.myWallet || '';
   } catch {}
   $('settingsModal').classList.add('open');
 }
@@ -117,7 +119,8 @@ async function saveSettingsUI() {
       heliusApiKey: $('cfgHeliusKey').value.trim(),
       walletListPath: $('cfgWalletPath').value.trim(),
       telegramBotToken: $('cfgTgToken').value.trim(),
-      telegramChatId: $('cfgTgChatId').value.trim()
+      telegramChatId: $('cfgTgChatId').value.trim(),
+      myWallet: $('cfgMyWallet') ? $('cfgMyWallet').value.trim() : ''
     };
     const res = await api('/api/config', { method: 'POST', body: JSON.stringify(body) });
     showToast(`Config tersimpan! Helius Key: ${res.heliusKeyMasked || 'belum diisi'}`);
@@ -811,16 +814,20 @@ async function refreshPinger() {
     $('btnStopPing').style.display = p.running ? 'inline-flex' : 'none';
     $('pingerStatusLine').innerHTML = p.running
       ? `<span class="pos">● LIVE MONITORING</span> — Watching <b>${p.watchlistCount}</b> wallets | Consensus: <b>&ge;${p.minConsensusWallets}</b> wallets dalam <b>${p.windowMinutes}m</b> | Last poll: ${p.lastPollAt ? fmtAgo(Math.floor(p.lastPollAt / 1000)) : 'starting...'}`
-      : `Stopped. Klik <b>▶ Start Live Ping</b> saat sesi trenching (19:30–22:00 WIB).`;
+      : `Stopped. Klik <b>▶ Start Live Ping</b> saat sesi trenching (Opsi 1: 21:30–23:30 WIB).`;
 
     $('consensusCount').textContent = `${p.consensus.length} alerts`;
     $('consensusFeed').innerHTML = p.consensus.length
       ? p.consensus.map((c) => `
           <div class="ping-item consensus">
             <div>
-              <div><b>🔥 ${c.walletCount} tracked wallets bought $${escHtml(c.symbol)}</b> <span class="muted mono">(${c.totalSol} SOL in ${c.spanMin}m)</span></div>
+              <div>
+                <b>🔥 ${c.walletCount} tracked wallets bought $${escHtml(c.symbol)}</b>
+                <span class="muted mono">(${c.totalSol} SOL in ${c.spanMin}m)</span>
+                ${c.passesTrench3Sec ? '<span class="badge badge-ELITE" style="margin-left:6px;">✅ PASS 3-SEC FILTER</span>' : ''}
+              </div>
               <div class="mono muted" style="font-size:11px;margin-top:3px;">
-                MC: <b style="color:var(--text)">${fmtUsd(c.marketCap)}</b> · Liq: ${fmtUsd(c.liquidityUsd)} · 5m Vol: ${fmtUsd(c.volume5m)} · Rug: ${c.rugScore ?? '-'} · ${fmtAgo(c.ts)}
+                MC: <b style="color:var(--text)">${fmtUsd(c.marketCap)}</b> · Liq: ${fmtUsd(c.liquidityUsd)} · 5m Vol: ${fmtUsd(c.volume5m)} · V/MC: ${c.volMcRatio ?? '-'}x · Rug: ${c.rugScore ?? '-'} · ${fmtAgo(c.ts)}
               </div>
               <div class="muted" style="font-size:11.5px;margin-top:2px;">
                 Buyers: ${c.wallets.map((w) => `${escHtml(w.name)} (${w.sol} SOL)`).join(', ')}
@@ -872,9 +879,235 @@ async function stopPingerUI() {
   try { await api('/api/pinger/stop', { method: 'POST' }); showToast('Live Ping dihentikan.'); refreshPinger(); } catch {}
 }
 
+// === BODYGUARD, 3-SEC FILTER & KOBE 5/5 SCORECARD ===
+let bgCooldownEndTs = 0;
+
+function updateWibClockUI() {
+  const clockEl = $('bgClockWib');
+  if (!clockEl) return;
+  const d = new Date(Date.now() + 7 * 3600 * 1000);
+  clockEl.textContent = `${d.toISOString().slice(11, 19)} WIB`;
+  if (bgCooldownEndTs > Date.now()) {
+    const rem = Math.max(0, Math.ceil((bgCooldownEndTs - Date.now()) / 1000));
+    const mm = String(Math.floor(rem / 60)).padStart(2, '0');
+    const ss = String(rem % 60).padStart(2, '0');
+    const tEl = $('bgGuardTitle');
+    if (tEl && tEl.dataset.level === 'COOLDOWN') {
+      tEl.textContent = `🛑 COOLDOWN 30 MENIT AKTIF (${mm}:${ss} tersisa)`;
+    }
+  }
+}
+
+function renderBodyguardData(snap) {
+  if (!snap) return;
+  if (snap.credits) updateCredits(snap.credits);
+
+  // 1. WIB Opsi 1 Session Banner
+  const sess = snap.session;
+  if (sess) {
+    $('bgSessionBadge').textContent = sess.badge;
+    $('bgSessionMsg').textContent = sess.msg;
+    const sb = $('bgSessionBanner');
+    sb.style.borderColor = sess.color === 'green' ? 'rgba(0,229,153,0.5)' : sess.color === 'red' ? 'rgba(255,77,109,0.5)' : sess.color === 'amber' ? 'rgba(255,183,3,0.5)' : 'rgba(56,189,248,0.4)';
+  }
+
+  if (snap.myWallet && !$('bgWalletInput').value) {
+    $('bgWalletInput').value = snap.myWallet;
+  }
+
+  // 2. Scorecard
+  const sc = snap.scorecard;
+  if (sc) {
+    $('scDateLabel').textContent = sc.todayDate;
+    $('scScoreBadge').textContent = `${sc.todayScore} / 5`;
+    $('scScoreBadge').style.color = sc.todayScore === 5 ? 'var(--green)' : sc.todayScore >= 3 ? 'var(--amber)' : 'var(--red)';
+    $('bgKpiStreak').textContent = `${sc.perfectStreak}d`;
+    $('bgKpiNoGoon').textContent = `0-Goon Streak: ${sc.noGoonStreak}d · Today: ${sc.todayScore}/5`;
+    const c = sc.today?.checks || {};
+    ['officeClean', 'noGooning', 'gymAndDinner', 'tradingSop', 'sleepOnTime'].forEach((k) => {
+      const el = $(`sc_${k}`);
+      if (el) el.checked = Boolean(c[k]);
+    });
+    if ($('scNoteInput') && document.activeElement !== $('scNoteInput')) {
+      $('scNoteInput').value = sc.today?.note || '';
+    }
+    $('scHistoryChips').innerHTML = (sc.history || []).map((h) => {
+      const cls = h.score === 5 ? 'pos' : h.score <= 2 ? 'neg' : '';
+      return `<span class="day-chip ${cls}" title="${escHtml(h.note || '')}">${h.date.slice(5)}: <b>${h.score}/5</b></span>`;
+    }).join('');
+  }
+
+  // 3. Wallet Audit & Guard Banner
+  const a = snap.audit;
+  if (!a) return;
+
+  const g = a.guardStatus || {};
+  const gb = $('bgGuardBanner');
+  $('bgGuardTitle').textContent = g.title || '🛡 Personal Trading Bodyguard';
+  $('bgGuardTitle').dataset.level = g.level || 'READY';
+  $('bgGuardMsg').textContent = g.message || '';
+  if (g.level === 'DAILY_STOP' || g.level === 'COOLDOWN') {
+    gb.style.borderColor = 'rgba(255,77,109,0.7)';
+    gb.style.background = 'rgba(255,77,109,0.1)';
+    bgCooldownEndTs = g.cooldownRemainingSec ? Date.now() + g.cooldownRemainingSec * 1000 : 0;
+  } else if (g.level === 'WIN_LOCK') {
+    gb.style.borderColor = 'rgba(0,229,153,0.7)';
+    gb.style.background = 'rgba(0,229,153,0.1)';
+    bgCooldownEndTs = 0;
+  } else {
+    gb.style.borderColor = 'rgba(0,229,153,0.35)';
+    gb.style.background = 'var(--bg-elev)';
+    bgCooldownEndTs = 0;
+  }
+
+  $('bgKpiSol').textContent = `${a.liquidSol.toFixed(3)} SOL`;
+  $('bgKpiRent').textContent = a.emptyAccounts > 0
+    ? `⚡ +${a.reclaimableSol.toFixed(4)} SOL rent (${a.emptyAccounts} akun kosong) → Efektif ${a.effectiveSol.toFixed(3)} SOL`
+    : `0 akun kosong · Efektif ${a.effectiveSol.toFixed(3)} SOL`;
+  $('bgKpiBid').textContent = `${a.sizing.bid} SOL`;
+  $('bgKpiTier').textContent = `${a.sizing.tierLabel} · ~${a.sizing.maxBulletsLoss}x nyawa loss`;
+
+  const tPnl = a.today?.pnlSol || 0;
+  $('bgKpiTodayPnl').textContent = `${tPnl >= 0 ? '+' : ''}${tPnl.toFixed(4)} SOL`;
+  $('bgKpiTodayPnl').className = `kpi-value ${tPnl >= 0 ? 'pos' : 'neg'}`;
+  $('bgKpiTodayWl').textContent = `${a.today?.wins || 0}W / ${a.today?.losses || 0}L · ${a.today?.oversizes || 0} oversize · ${a.today?.panicHolds || 0} fast(<35s)`;
+
+  $('bgKpiOverallWr').textContent = `${a.overall?.winRate || 0}% (${a.overall?.wins || 0}W/${a.overall?.losses || 0}L)`;
+  const nDep = a.netFromDepositSol || 0;
+  $('bgKpiOverallSub').textContent = a.totalDepositedSol > 0
+    ? `Deposit ${a.totalDepositedSol} SOL · Net ${nDep >= 0 ? '+' : ''}${nDep} SOL`
+    : `${a.overall?.closedTrades || 0} closed trades`;
+
+  $('bgDailySummaryChips').innerHTML = (a.dailySummary || []).slice(0, 7).map((d) => {
+    const cls = d.pnlSol >= 0 ? 'pos' : 'neg';
+    return `<span class="day-chip ${cls}">${d.date.slice(5)}: <b>${d.pnlSol >= 0 ? '+' : ''}${d.pnlSol.toFixed(3)} SOL</b> (${d.wins}W/${d.losses}L)</span>`;
+  }).join('');
+
+  $('bgTradesBody').innerHTML = (a.trades || []).length
+    ? a.trades.map((t) => {
+        const cls = t.pnlSol >= 0 ? 'pos' : 'neg';
+        const flags = [];
+        if (t.isOversize) flags.push('<span class="badge badge-BOT">⚠ OVERSIZE</span>');
+        if (t.isPanicHold) flags.push('<span class="badge badge-LOSER">⚡ FAST &lt;35s</span>');
+        if (!t.isOversize && !t.isPanicHold && t.isWin) flags.push('<span class="badge badge-ELITE">✅ CLEAN SOP</span>');
+        if (!flags.length) flags.push('<span class="muted">Normal</span>');
+        return `
+          <tr>
+            <td class="mono">${t.date} <span class="muted">${t.firstTime}</span></td>
+            <td><b style="cursor:pointer;" onclick="copyText('${t.mint}')">$${escHtml(t.symbol)}</b></td>
+            <td class="mono">${fmtHold(t.holdSec)}</td>
+            <td class="mono">${t.buySol.toFixed(4)}</td>
+            <td class="mono">${t.sellSol.toFixed(4)}</td>
+            <td class="mono ${cls}"><b>${t.pnlSol >= 0 ? '+' : ''}${t.pnlSol.toFixed(4)}</b> (${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct}%)</td>
+            <td>${flags.join(' ')}</td>
+          </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" class="muted" style="text-align:center;padding:18px;">Belum ada trade tercatat.</td></tr>';
+}
+
+async function refreshBodyguard() {
+  try {
+    const snap = await api('/api/bodyguard');
+    renderBodyguardData(snap);
+  } catch {}
+}
+
+async function scanMyWalletUI() {
+  const wallet = $('bgWalletInput').value.trim();
+  const btn = $('btnScanMyWallet');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning...';
+  try {
+    const snap = await api('/api/bodyguard/scan', {
+      method: 'POST',
+      body: JSON.stringify({ wallet })
+    });
+    renderBodyguardData(snap);
+    showToast(`Wallet discan! Liquid ${snap.audit.liquidSol.toFixed(3)} SOL (+${snap.audit.reclaimableSol.toFixed(4)} rent).`);
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Scan My Wallet';
+  }
+}
+
+async function checkToken3SecUI() {
+  const mint = $('bgTokenCaInput').value.trim();
+  if (!mint) return showToast('Paste Token CA Solana dulu!', true);
+  const btn = $('btnCheckToken3Sec');
+  btn.disabled = true;
+  btn.textContent = '⏳ Cek...';
+  try {
+    const r = await api('/api/bodyguard/check-token', {
+      method: 'POST',
+      body: JSON.stringify({ mint })
+    });
+    const vColor = r.verdict === 'PASS' ? 'var(--green)' : r.verdict === 'WATCH' ? 'var(--amber)' : 'var(--red)';
+    $('bgTokenFilterResult').innerHTML = `
+      <div style="padding:10px 12px;border-radius:7px;border:1px solid ${vColor};background:var(--bg);margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <div>
+            <b style="font-size:14px;color:${vColor};">${r.verdictLabel}</b>
+            <div class="mono muted" style="font-size:11.5px;margin-top:2px;">
+              $${escHtml(r.symbol)} (${escHtml(r.dexId)}) · Score <b>${r.passCount}/6</b> · MC <b>${fmtUsd(r.mc)}</b> · Liq ${fmtUsd(r.liq)} (${r.liqMcPct}%) · Age ${r.ageMin ?? '?'}m
+            </div>
+          </div>
+          <div class="controls-row">
+            <a class="btn btn-primary btn-xs" href="${r.padreUrl}" target="_blank">Open Padre</a>
+            <a class="btn btn-xs" href="${r.dexUrl}" target="_blank">DexScreener</a>
+          </div>
+        </div>
+        <div class="gate-grid" style="margin:10px 0 6px;">
+          ${r.checks.map((c) => `
+            <div class="gate-card ${c.pass ? 'pass' : c.warn ? '' : 'fail'}" style="padding:7px 9px;">
+              <div style="font-size:11.5px;font-weight:600;">${c.pass ? '✅' : c.warn ? '⚠️' : '❌'} ${escHtml(c.name)}</div>
+              <div class="mono muted" style="font-size:11px;margin-top:2px;">${escHtml(c.detail)}</div>
+            </div>`).join('')}
+        </div>
+        <div class="mono" style="font-size:11.5px;padding-top:6px;border-top:1px solid var(--border);">
+          <b>Rencana Exit Otomatis (dari MC sekarang):</b>
+          <span class="neg">SL (-32%): ${fmtUsd(r.plan.stopLossMc)}</span> ·
+          <span class="pos">TP1 50% (Sell Init): ${fmtUsd(r.plan.tp1Mc)}</span> ·
+          <span class="pos">TP2 30% (~3x): ${fmtUsd(r.plan.tp2Mc)}</span> ·
+          <span style="color:var(--cyan);">Moonbag SL: ${fmtUsd(r.plan.moonbagSlMc)}</span>
+        </div>
+      </div>`;
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cek Filter';
+  }
+}
+
+async function saveScorecardUI() {
+  try {
+    const checks = {
+      officeClean: $('sc_officeClean').checked,
+      noGooning: $('sc_noGooning').checked,
+      gymAndDinner: $('sc_gymAndDinner').checked,
+      tradingSop: $('sc_tradingSop').checked,
+      sleepOnTime: $('sc_sleepOnTime').checked
+    };
+    const note = $('scNoteInput').value.trim();
+    const res = await api('/api/bodyguard/scorecard', {
+      method: 'POST',
+      body: JSON.stringify({ checks, note })
+    });
+    renderBodyguardData({ scorecard: res.scorecard });
+    if (res.scorecard.todayScore === 5) showToast('🔥 5/5 PERFECT KOBE DAY! Pertahankan besok!');
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
 (async () => {
   await refreshConfig();
   await refreshWallets();
+  refreshBodyguard();
+  updateWibClockUI();
+  setInterval(updateWibClockUI, 1000);
   setInterval(() => {
     if ($('tab-pinger').classList.contains('active')) refreshPinger();
   }, 8000);

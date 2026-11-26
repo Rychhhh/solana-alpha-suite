@@ -27,6 +27,12 @@ const {
   handleHeliusWebhook,
   getPingerStatus
 } = require('./lib/pinger');
+const {
+  auditMyWallet,
+  checkToken3SecFilter,
+  updateScorecard,
+  getBodyguardSnapshot
+} = require('./lib/bodyguard');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -93,6 +99,7 @@ const server = http.createServer(async (req, res) => {
         walletListPath: env.WALLET_LIST_PATH,
         walletFileExists: fs.existsSync(env.WALLET_LIST_PATH),
         hasTelegram: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
+        myWallet: env.MY_WALLET || '',
         credits: getCreditStats()
       });
     }
@@ -111,6 +118,9 @@ const server = http.createServer(async (req, res) => {
       }
       if (typeof body.telegramChatId === 'string') {
         updates.TELEGRAM_CHAT_ID = body.telegramChatId.trim();
+      }
+      if (typeof body.myWallet === 'string') {
+        updates.MY_WALLET = body.myWallet.trim();
       }
       const next = saveEnv(updates);
       return sendJson(res, 200, {
@@ -255,6 +265,32 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const out = await handleHeliusWebhook(body);
       return sendJson(res, 200, out);
+    }
+
+    // === BODYGUARD, 3-SEC TOKEN FILTER & KOBE 5/5 SCORECARD ===
+    if (pathname === '/api/bodyguard' && req.method === 'GET') {
+      return sendJson(res, 200, { ...getBodyguardSnapshot(), credits: getCreditStats() });
+    }
+
+    if (pathname === '/api/bodyguard/scan' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (typeof body.wallet === 'string' && body.wallet.trim()) {
+        saveEnv({ MY_WALLET: body.wallet.trim() });
+      }
+      const audit = await auditMyWallet(body.wallet);
+      return sendJson(res, 200, { ...getBodyguardSnapshot(), audit, credits: getCreditStats() });
+    }
+
+    if (pathname === '/api/bodyguard/check-token' && req.method === 'POST') {
+      const body = await readBody(req);
+      const result = await checkToken3SecFilter(body.mint);
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === '/api/bodyguard/scorecard' && req.method === 'POST') {
+      const body = await readBody(req);
+      const scorecard = updateScorecard({ date: body.date, checks: body.checks, note: body.note });
+      return sendJson(res, 200, { ok: true, scorecard });
     }
 
     return serveStatic(req, res, pathname);
