@@ -163,6 +163,7 @@ const server = http.createServer(async (req, res) => {
         windowDays: Number(body.windowDays ?? 7),
         maxPages: Number(body.maxPages ?? 3),
         reAuditExisting: Boolean(body.reAuditExisting),
+        prioritizeMode: body.prioritizeMode === 'calm_swing' ? 'calm_swing' : 'recent',
         specificAddresses: Array.isArray(body.addresses) ? body.addresses : null
       }).catch(() => {});
       return sendJson(res, 200, { ok: true, job: getJobState() });

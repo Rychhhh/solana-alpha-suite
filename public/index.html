@@ -196,21 +196,26 @@
               <option value="lastTxTime">Sort: Most Recent</option>
             </select>
             <button class="btn btn-primary" onclick="startStage2(35, false)">▶ Deep Audit 35 Active</button>
-            <button class="btn" onclick="reAuditTopExisting()" title="Re-audit ulang pakai engine v2.1 anti-dust & consistency">↻ Re-Audit Existing</button>
-            <button class="btn btn-amber" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
+            <button class="btn btn-amber" onclick="startCalmSwingAudit(35)" title="Prioritaskan wallet tenang (tx/jam rendah) dengan window 30D untuk nemuin Swing Trader, High-MC >$25K & Low-Cap Runner!">💎 Hunt 35 Calm/Swing (30D)</button>
+            <button class="btn" onclick="reAuditTopExisting()" title="Re-audit ulang pakai engine v2.2 (Entry/Exit MC, anti-dust & consistency)">↻ Re-Audit Existing</button>
+            <button class="btn" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
           </div>
-          <div class="controls-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;">
-            <button class="btn btn-xs btn-primary" onclick="applyHighWrPreset()" title="WR >= 55%, Net > 0, Closed >= 6, Hold >= 25s, Span >= 1d">💎 Preset: High-WR &amp; Consistent</button>
-            <button class="btn btn-xs" onclick="resetCustomFilters()">Reset Filter</button>
-            <label class="muted">Min WR%: <input type="number" id="fltMinWr" value="0" min="0" max="100" style="width:52px;" /></label>
-            <label class="muted">Min Closed: <input type="number" id="fltMinClosed" value="0" min="0" max="200" style="width:52px;" /></label>
-            <label class="muted">Min Hold(s): <input type="number" id="fltMinHold" value="0" min="0" max="3600" style="width:56px;" /></label>
-            <label class="muted">Min Span(d): <input type="number" id="fltMinSpan" value="0" min="0" max="30" step="0.5" style="width:52px;" /></label>
+          <div class="controls-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;flex-wrap:wrap;">
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('lowcap_runner')" title="Entry MC <= $25K, Hold >= 3m, WR >= 50%, Net > 0">🌱 Low-Cap → $100K</button>
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('high_mc')" title="Entry MC >= $25K, WR >= 50%, Net > 0, Hold >= 25s">🏛 High-MC (&gt;$25K)</button>
+            <button class="btn btn-xs btn-primary" onclick="applyPreset('swing')" title="Hold >= 10m (600s), WR >= 50%, Net > 0">💎 Swing High-WR</button>
+            <button class="btn btn-xs btn-amber" onclick="applyPreset('consistent')" title="WR >= 55%, Net > 0, Closed >= 6, Hold >= 25s, Span >= 1d, Green Days >= 50%">🎯 All High-WR</button>
+            <button class="btn btn-xs" onclick="resetCustomFilters()">Reset</button>
+            <label class="muted">WR%&ge; <input type="number" id="fltMinWr" value="0" min="0" max="100" style="width:46px;" /></label>
+            <label class="muted">Closed&ge; <input type="number" id="fltMinClosed" value="0" min="0" max="200" style="width:46px;" /></label>
+            <label class="muted">Hold(s)&ge; <input type="number" id="fltMinHold" value="0" min="0" max="7200" style="width:52px;" /></label>
+            <label class="muted">Entry($K): <input type="number" id="fltMinEntryMc" value="0" min="0" style="width:48px;" placeholder="min" />–<input type="number" id="fltMaxEntryMc" value="0" min="0" style="width:52px;" placeholder="max" /></label>
+            <label class="muted">Span(d)&ge; <input type="number" id="fltMinSpan" value="0" min="0" max="30" step="0.5" style="width:46px;" /></label>
             <label class="muted" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-              <input type="checkbox" id="fltNetPos" /> Net SOL &gt; 0
+              <input type="checkbox" id="fltNetPos" /> Net&gt;0
             </label>
             <label class="muted" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-              <input type="checkbox" id="fltGreenDays" /> Green Days &ge; 50%
+              <input type="checkbox" id="fltGreenDays" /> Green&ge;50%
             </label>
             <span class="mono muted" id="fltMatchCount"></span>
           </div>
@@ -222,12 +227,12 @@
               <tr>
                 <th>Wallet &amp; Identity</th>
                 <th>Style / Archetype</th>
-                <th>Tx/Day (~Wk)</th>
                 <th>Tier</th>
                 <th>SOL</th>
                 <th>Gates / Score</th>
                 <th>Span</th>
                 <th>WR (Closed)</th>
+                <th>Entry → Max MC</th>
                 <th>Green Days / PF</th>
                 <th>Realized / Net</th>
                 <th>Hold</th>

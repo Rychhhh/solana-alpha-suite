@@ -300,14 +300,15 @@ function renderOverview(s) {
 function renderTierPills(s) {
   const filters = [
     { key: 'ALL', label: `ALL (${s.total})` },
-    { key: 'STYLE:VERIFIED_KOLS', label: `👑 VERIFIED KOLS (${s.styleCounts?.VERIFIED_KOLS || 0})` },
-    { key: 'STYLE:SHARP_SNIPER', label: `🎯 SHARP SNIPER (${s.styleCounts?.SHARP_SNIPER || 0})` },
+    { key: 'STYLE:LOWCAP_RUNNER', label: `🌱 LOW-CAP → $100K (${s.styleCounts?.LOWCAP_RUNNER || 0})` },
+    { key: 'STYLE:HIGH_MC', label: `🏛 HIGH-MC >$25K (${s.styleCounts?.HIGH_MC || 0})` },
     { key: 'STYLE:SWING', label: `💎 SWING (${s.styleCounts?.SWING || 0})` },
-    { key: 'STYLE:HYPER_SCALPER', label: `⚡ HYPER SCALPER (${s.styleCounts?.HYPER_SCALPER || 0})` },
+    { key: 'STYLE:SHARP_SNIPER', label: `🎯 SHARP SNIPER (${s.styleCounts?.SHARP_SNIPER || 0})` },
+    { key: 'STYLE:VERIFIED_KOLS', label: `👑 VERIFIED KOLS (${s.styleCounts?.VERIFIED_KOLS || 0})` },
     { key: 'ELITE', label: `ELITE (${s.counts.ELITE || 0})` },
     { key: 'GOOD', label: `GOOD (${s.counts.GOOD || 0})` },
-    { key: 'KOL_SCALPER', label: `KOL_SCALPER (${s.counts.KOL_SCALPER || 0})` },
     { key: 'ACTIVE', label: `ACTIVE (${s.counts.ACTIVE || 0})` },
+    { key: 'STYLE:HYPER_SCALPER', label: `⚡ HYPER SCALPER (${s.styleCounts?.HYPER_SCALPER || 0})` },
     { key: 'STYLE:AUTO_BOT', label: `🤖 AUTO BOT (${s.styleCounts?.AUTO_BOT || 0})` },
     { key: 'LOSER', label: `LOSER (${s.counts.LOSER || 0})` },
     { key: 'DORMANT', label: `DORMANT (${s.counts.DORMANT || 0})` },
@@ -326,29 +327,64 @@ function setTierFilter(t) {
 
 $('searchWallet').addEventListener('input', renderWalletsTable);
 $('sortWallets').addEventListener('change', renderWalletsTable);
-['fltMinWr', 'fltMinClosed', 'fltMinHold', 'fltMinSpan', 'fltNetPos', 'fltGreenDays'].forEach((id) => {
+['fltMinWr', 'fltMinClosed', 'fltMinHold', 'fltMinEntryMc', 'fltMaxEntryMc', 'fltMinSpan', 'fltNetPos', 'fltGreenDays'].forEach((id) => {
   const el = $(id);
   if (el) el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', renderWalletsTable);
 });
 
-function applyHighWrPreset() {
+function applyPreset(mode) {
   currentTierFilter = 'ALL';
-  $('fltMinWr').value = '55';
-  $('fltMinClosed').value = '6';
-  $('fltMinHold').value = '25';
-  $('fltMinSpan').value = '1';
-  $('fltNetPos').checked = true;
-  $('fltGreenDays').checked = true;
-  $('sortWallets').value = 'consistency';
+  $('fltMinEntryMc').value = '0';
+  $('fltMaxEntryMc').value = '0';
+  if (mode === 'lowcap_runner') {
+    $('fltMinWr').value = '50';
+    $('fltMinClosed').value = '4';
+    $('fltMinHold').value = '180';
+    $('fltMaxEntryMc').value = '25';
+    $('fltMinSpan').value = '1';
+    $('fltNetPos').checked = true;
+    $('fltGreenDays').checked = false;
+    $('sortWallets').value = 'pnl';
+    showToast('🌱 Filter Low-Cap Runner: Entry <= $25K, Hold >= 3m, WR >= 50%, Net > 0!');
+  } else if (mode === 'high_mc') {
+    $('fltMinWr').value = '50';
+    $('fltMinClosed').value = '4';
+    $('fltMinHold').value = '25';
+    $('fltMinEntryMc').value = '25';
+    $('fltMinSpan').value = '1';
+    $('fltNetPos').checked = true;
+    $('fltGreenDays').checked = false;
+    $('sortWallets').value = 'pnl';
+    showToast('🏛 Filter High-MC: Entry >= $25K MC, WR >= 50%, Net > 0!');
+  } else if (mode === 'swing') {
+    $('fltMinWr').value = '50';
+    $('fltMinClosed').value = '4';
+    $('fltMinHold').value = '600';
+    $('fltMinSpan').value = '1';
+    $('fltNetPos').checked = true;
+    $('fltGreenDays').checked = false;
+    $('sortWallets').value = 'winRate';
+    showToast('💎 Filter Swing High-WR: Hold >= 10m (600s), WR >= 50%, Net > 0!');
+  } else {
+    $('fltMinWr').value = '55';
+    $('fltMinClosed').value = '6';
+    $('fltMinHold').value = '25';
+    $('fltMinSpan').value = '1';
+    $('fltNetPos').checked = true;
+    $('fltGreenDays').checked = true;
+    $('sortWallets').value = 'consistency';
+    showToast('🎯 Filter Consistent High-WR: WR >= 55%, Closed >= 6, Net > 0, Green Days >= 50%!');
+  }
   renderTierPills(summaryData);
   renderWalletsTable();
-  showToast('Filter aktif: WR >= 55%, Net > 0, Closed >= 6, Hold >= 25s, Span >= 1d, Green Days >= 50%!');
 }
 
 function resetCustomFilters() {
   $('fltMinWr').value = '0';
   $('fltMinClosed').value = '0';
   $('fltMinHold').value = '0';
+  $('fltMinEntryMc').value = '0';
+  $('fltMaxEntryMc').value = '0';
   $('fltMinSpan').value = '0';
   $('fltNetPos').checked = false;
   $('fltGreenDays').checked = false;
@@ -371,10 +407,12 @@ function renderWalletsTable() {
   const minWr = Number($('fltMinWr')?.value || 0);
   const minClosed = Number($('fltMinClosed')?.value || 0);
   const minHold = Number($('fltMinHold')?.value || 0);
+  const minEntryMcK = Number($('fltMinEntryMc')?.value || 0);
+  const maxEntryMcK = Number($('fltMaxEntryMc')?.value || 0);
   const minSpan = Number($('fltMinSpan')?.value || 0);
   const netPosOnly = Boolean($('fltNetPos')?.checked);
   const greenDaysOnly = Boolean($('fltGreenDays')?.checked);
-  const hasNumericFilter = minWr > 0 || minClosed > 0 || minHold > 0 || minSpan > 0 || netPosOnly || greenDaysOnly;
+  const hasNumericFilter = minWr > 0 || minClosed > 0 || minHold > 0 || minEntryMcK > 0 || maxEntryMcK > 0 || minSpan > 0 || netPosOnly || greenDaysOnly;
 
   let rows = allWallets.filter((w) => {
     if (currentTierFilter === 'STYLE:VERIFIED_KOLS') {
@@ -394,6 +432,8 @@ function renderWalletsTable() {
       if ((d.closedTokens || 0) < minClosed) return false;
       if ((d.medianHoldSec ?? -1) < minHold) return false;
       if ((d.spanDays || 0) < minSpan) return false;
+      if (minEntryMcK > 0 && ((d.medianEntryMcUsd || 0) < minEntryMcK * 1000)) return false;
+      if (maxEntryMcK > 0 && (!d.medianEntryMcUsd || d.medianEntryMcUsd > maxEntryMcK * 1000)) return false;
       if (netPosOnly && (netVal <= 0 || (d.realizedPnlSol || 0) <= 0)) return false;
       if (greenDaysOnly && cm.activeDays >= 2 && cm.pct < 50) return false;
     }
@@ -429,16 +469,19 @@ function renderWalletsTable() {
     const nCls = netVal !== null ? (netVal >= 0 ? 'pos' : 'neg') : 'muted';
     const cm = getConsistencyMetrics(d);
     const consStr = d ? `${cm.activeDays ? `<span class="${cm.pct >= 50 ? 'pos' : 'neg'}">${cm.greenDays}/${cm.activeDays}d (${cm.pct}%)</span>` : '-'}${cm.pf ? ` · <b>${cm.pf}x</b>` : ''}` : '-';
+    const mcStr = d && d.medianEntryMcUsd
+      ? `<b>${fmtUsd(d.medianEntryMcUsd)}</b> → <span class="${(d.maxExitMcUsd || 0) >= 80000 ? 'pos' : 'muted'}">${fmtUsd(d.maxExitMcUsd)}</span>${d.runners2x ? ` <span class="muted">(${d.runners2x}×2x+)</span>` : ''}`
+      : '<span class="muted" title="Klik Re-Audit untuk hitung Entry MC">-</span>';
     return `
       <tr>
         <td><b style="cursor:pointer;" onclick="copyText('${w.address}')">${escHtml(w.emoji)} ${escHtml(w.name)}</b> <span class="mono muted" style="font-size:10.5px;">${shortAddr(w.address)}</span>${identityBadge(w)}</td>
         <td>${styleBadge(w)}</td>
-        <td class="mono muted" style="font-size:11px;">${escHtml(w.cadence?.label || '-')}</td>
         <td><span class="badge badge-${w.tier}">${w.tier}</span></td>
         <td class="mono">${w.solBalance !== null ? w.solBalance.toFixed(1) : '-'}</td>
         <td class="mono">${d ? `${gatePill(d)} <b>${d.copyScore}</b>` : '-'}</td>
         <td class="mono">${fmtSpan(d)}</td>
         <td class="mono">${d ? `<b>${d.winRate}%</b> <span class="muted">(${d.closedTokens})</span>` : '-'}</td>
+        <td class="mono" style="font-size:11px;">${mcStr}</td>
         <td class="mono" style="font-size:11px;">${consStr}</td>
         <td class="mono">${d ? `<span class="${rCls}">${d.realizedPnlSol >= 0 ? '+' : ''}${d.realizedPnlSol}</span> <span class="muted">/</span> <span class="${nCls}">${netVal >= 0 ? '+' : ''}${netVal}</span>` : '-'}</td>
         <td class="mono">${d ? fmtHold(d.medianHoldSec) : '-'}</td>
@@ -449,6 +492,24 @@ function renderWalletsTable() {
         </td>
       </tr>`;
   }).join('');
+}
+
+async function startCalmSwingAudit(maxWallets = 35) {
+  try {
+    await api('/api/audit/stage2', {
+      method: 'POST',
+      body: JSON.stringify({
+        maxWallets,
+        minSol: 0.5,
+        onlyActiveDays: 14,
+        windowDays: 30,
+        maxPages: 4,
+        prioritizeMode: 'calm_swing'
+      })
+    });
+    showToast(`💎 Memburu ${maxWallets} wallet tenang (Low Tx/Hr, 30D Window) untuk Swing, High-MC & Low-Cap Runners!`);
+    refreshWallets();
+  } catch (err) { showToast(err.message, true); }
 }
 
 async function startStage1(forceAll) {
