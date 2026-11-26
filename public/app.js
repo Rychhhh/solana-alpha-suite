@@ -494,20 +494,20 @@ function renderWalletsTable() {
   }).join('');
 }
 
-async function startCalmSwingAudit(maxWallets = 35) {
+async function startCalmSwingAudit(maxWallets = 100) {
   try {
     await api('/api/audit/stage2', {
       method: 'POST',
       body: JSON.stringify({
         maxWallets,
-        minSol: 0.5,
+        minSol: 0.2,
         onlyActiveDays: 14,
         windowDays: 30,
         maxPages: 4,
         prioritizeMode: 'calm_swing'
       })
     });
-    showToast(`💎 Memburu ${maxWallets} wallet tenang (Low Tx/Hr, 30D Window) untuk Swing, High-MC & Low-Cap Runners!`);
+    showToast(`💎 Memburu hingga ${maxWallets} wallet tenang (Low Tx/Hr, 30D Window) untuk Swing, High-MC & Low-Cap Runners!`);
     refreshWallets();
   } catch (err) { showToast(err.message, true); }
 }

@@ -195,8 +195,13 @@
               <option value="solBalance">Sort: SOL Balance</option>
               <option value="lastTxTime">Sort: Most Recent</option>
             </select>
-            <button class="btn btn-primary" onclick="startStage2(35, false)">▶ Deep Audit 35 Active</button>
-            <button class="btn btn-amber" onclick="startCalmSwingAudit(35)" title="Prioritaskan wallet tenang (tx/jam rendah) dengan window 30D untuk nemuin Swing Trader, High-MC >$25K & Low-Cap Runner!">💎 Hunt 35 Calm/Swing (30D)</button>
+            <select id="auditBatchSize" title="Jumlah wallet yang di-audit sekali jalan">
+              <option value="35">Batch: 35</option>
+              <option value="100" selected>Batch: 100</option>
+              <option value="300">Batch: All Active</option>
+            </select>
+            <button class="btn btn-primary" onclick="startStage2(Number($('auditBatchSize').value)||100, false)">▶ Deep Audit Active</button>
+            <button class="btn btn-amber" onclick="startCalmSwingAudit(Number($('auditBatchSize').value)||100)" title="Prioritaskan wallet tenang (tx/jam rendah) dengan window 30D untuk nemuin Swing Trader, High-MC >$25K & Low-Cap Runner!">💎 Hunt Calm/Swing (30D)</button>
             <button class="btn" onclick="reAuditTopExisting()" title="Re-audit ulang pakai engine v2.2 (Entry/Exit MC, anti-dust & consistency)">↻ Re-Audit Existing</button>
             <button class="btn" onclick="window.open('/api/export/padre?topN=50&minScore=50','_blank')">Export Padre JSON</button>
           </div>
